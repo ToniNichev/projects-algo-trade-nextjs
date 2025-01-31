@@ -64,7 +64,9 @@ const OpenChart = ({
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastPrice, setLastPrice] = useState(null);
-  
+  const [offset, setOffset] = useState({ start: 0, end: 0 });
+  const [dragging, setDragging] = useState(false);  
+  const [mouseX, setMouseX] = useState(0);
   const timeframes = ['1H', '1D', '5D', '1M', '3M', '6M', 'YTD', '1Y'];
 
   const getTimeRange = (timeframe) => {
@@ -119,6 +121,34 @@ const OpenChart = ({
       setLoading(false);
     }
   };
+
+  const handleMouseDown = (event) => {
+    setDragging(true);
+    setMouseX(event.clientX);
+  };
+
+  const handleMouseMove = (event) => {
+    if (!dragging) return;
+    const deltaX = event.clientX - mouseX;
+    setOffset((prev) => ({
+      start: prev.start + deltaX * 0.5,
+      end: prev.end - deltaX * 0.5,
+    }));
+    setMouseX(event.clientX);
+  };
+
+  const handleMouseUp = () => setDragging(false);
+
+  const handleMouseWheel = (event) => {
+    setOffset((prev) => {
+      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
+      return {
+        start: prev.start * zoomFactor,
+        end: prev.end * zoomFactor,
+      };
+    });
+    event.preventDefault();
+  };  
 
   const drawChart = () => {
     if (!canvasRef.current || chartData.length === 0) return;
@@ -219,6 +249,9 @@ const OpenChart = ({
         ref={canvasRef}
         width={width}
         height={height}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         className="border border-gray-200 rounded-lg"
       />
     </div>
