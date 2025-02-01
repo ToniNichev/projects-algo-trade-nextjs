@@ -40,15 +40,23 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const handleMouseMove = useCallback((event) => {
     if (draggingRef.current) {
-      const diff = event.clientX - lastMouseXRef.current;;
+      const canvas = canvasRef.current;
+      const contextWidth = canvas.width - 50;
+
+      const p = chartData.length - (offset.start + offset.end);
+      const c = p / contextWidth;
+      const drag = c * (lastMouseXRef.current - event.clientX);
+      const newOffsetStart =  Math.round(offset.start + drag);
+      const newOffsetEnd = Math.round(offset.end - drag);
+
       setOffset({
-        start: offset.start - diff,
-        end: offset.end + diff,
+        start: newOffsetStart,
+        end: newOffsetEnd,
         fstart: offset.fstart,
         fend: offset.fend,
       });      
     }
-  }, []);
+  }, [chartData, offset]);
 
   const handleMouseUp = useCallback(() => {
     draggingRef.current = false;
@@ -73,12 +81,17 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     ctx.fillStyle = config.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    
     // Calculate price range
+    
     const visibleData = chartData.slice(
       Math.max(0, offset.start),
       chartData.length - offset.end
     );
+    
 
+    const dataLength = chartData.length - (offset.start + offset.end);
+    
     const minPrice = Math.min(...visibleData.map(d => d.low));
     const maxPrice = Math.max(...visibleData.map(d => d.high));
     const scaleY = (contextHeight - contextPadding * 2) / (maxPrice - minPrice);
@@ -88,13 +101,16 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     ctx.lineWidth = config.lineWidth;
     ctx.strokeStyle = config.lineColor;
 
-    let prevX = 0, prevY = 0;
+    const stepX = contextWidth / dataLength; // Define step size
 
-    const stepX = contextWidth / visibleData.length; // Define step size
+    console.log(offset.start);
+    for(let i=0; i < dataLength; i++) {
+      const dataIndex = i + offset.start;
 
-    visibleData.forEach((data, i) => {
+      if(!chartData[dataIndex]) continue;
+
       const x = i * stepX;
-      const y = contextHeight - contextPadding - (data.close - minPrice) * scaleY;
+      const y = contextHeight - contextPadding - (chartData[dataIndex].close - minPrice) * scaleY;
 
       if (i === 0) {
         ctx.moveTo(x, y);
@@ -102,14 +118,14 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
         ctx.lineTo(x, y);
       }
 
-      prevX = x;
-      prevY = y;
+      // prevX = x;
+      //prevY = y;
 
       if (i === 0) {
         setFirstXpos(x);
       }
       setLastXpos(x);
-    });
+    }
 
     ctx.stroke();
     // Draw fill
