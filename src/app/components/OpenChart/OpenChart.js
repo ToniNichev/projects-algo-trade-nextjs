@@ -1,261 +1,227 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { createCoinbaseProvider, getGranularity } from './ChartDataProviders';
 
-const ChartConfig = {
-  priceLine: {
-    width: 2,
-    color: '#FF0000'
-  },
-  lineWidth: '3',
-  lineColor: '#3DA5ED',
-  fillColor: '#EAF5FD',
-  backgroundColor: '#FFFFFF',
-  context_padding: 50,
-  grid: { 
-    font: '12px Arial',      
-    lineWidth: 0.3, 
-    lineColor: '#A9A9A9',
-    yearColor: 'red',
-    monthColor: 'green',
-    dayColor: 'blue',
-  },
-  priceArrow: { 
-    fillCollor: '#3DA5ED', 
-    priceColor: '#FFFFFF' 
-  },
-  interaction: { 
-    scrollingSpeed: 42 
-  },
-  tooltip: {
-    background: 'rgba(0,0,0,0.5)',
-    textColor: '#FFFFFF',
-    padding: 4,
-    borderRadius: 4,
-    font: '12px Arial',
-  },
-  volumeChart: {
-    barColor: 'rgba(165, 214, 255, 0.8)',
-    barColorDown: 'rgba(255, 158, 158, 0.8)',
-    barSpacing: 1,
-    height: 100,
-    padding: 5
-  }
-};
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import useChartData from "./lib/useChartData";
+import { useChartConfig } from "./ChartConfigContext";
+import TimeframeSelector from "./lib/TimeframeSelector";
+import ChartGrid from "./lib/ChartGrid";
+import ChartTooltip from "./lib/ChartTooltip";
+import VolumeChart from "./lib/VolumeChart";
+import PriceArrow from "./lib/PriceArrow";
 
-const TimeframeButton = ({ timeframe, active, onClick }) => (
-  <button 
-    onClick={() => onClick(timeframe)}
-    className={`px-4 py-2 mx-1 rounded ${active ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-  >
-    {timeframe}
-  </button>
-);
-
-const OpenChart = ({ 
-  symbol = 'ETH-USD', 
-  height = 350, 
-  width = 750,
-  dataProvider = createCoinbaseProvider()
-}) => {
+const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
+  const config = useChartConfig().config;
+  const [timeFrame, setTimeFrame] = useState("1D");
+  const { chartData, loading } = useChartData(symbol, timeFrame, dataSource);
   const canvasRef = useRef(null);
-  const [activeTimeframe, setActiveTimeframe] = useState('1D');
-  const [chartData, setChartData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Dragging state
+  const draggingRef = useRef(false);
+  const kineticSpeedRef = useRef(0);
+  const lastMouseXRef = useRef(0);
+  const kineticTimerRef = useRef(null);
+  const kineticCountRef = useRef(0);
+  
+  const [offset, setOffset] = useState({ 
+    start: 0, 
+    end: 0, 
+    fstart: 0, 
+    fend: 0 
+  });
+  
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [lastPrice, setLastPrice] = useState(null);
-  const [offset, setOffset] = useState({ start: 0, end: 0 });
-  const [dragging, setDragging] = useState(false);  
-  const [mouseX, setMouseX] = useState(0);
-  const timeframes = ['1H', '1D', '5D', '1M', '3M', '6M', 'YTD', '1Y'];
 
-  const getTimeRange = (timeframe) => {
-    const end = new Date();
-    const start = new Date();
+  // Kinetic scrolling implementation
+  const setKineticDragResidualSpeed = useCallback((speed, length) => {
+    if (!canvasRef.current) return;
     
-    switch(timeframe) {
-      case '1H':
-        start.setHours(end.getHours() - 1);
-        break;
-      case '1D':
-        start.setDate(end.getDate() - 1);
-        break;
-      case '5D':
-        start.setDate(end.getDate() - 5);
-        break;
-      case '1M':
-        start.setMonth(end.getMonth() - 1);
-        break;
-      case '3M':
-        start.setMonth(end.getMonth() - 3);
-        break;
-      case '6M':
-        start.setMonth(end.getMonth() - 6);
-        break;
-      case 'YTD':
-        start.setMonth(0, 1);
-        break;
-      case '1Y':
-        start.setFullYear(end.getFullYear() - 1);
-        break;
-      default:
-        start.setDate(end.getDate() - 30);
-    }
+    const contextWidth = canvasRef.current.width - 50;
+    const p = chartData.length - (offset.start + offset.end);
+    const c = p / contextWidth;
     
-    return { start, end };
-  };
-
-  const fetchData = async (timeframe) => {
-    setLoading(true);
-    try {
-      const { start, end } = getTimeRange(timeframe);
-      const granularity = getGranularity(timeframe);
-      const data = await dataProvider.fetchCandles(symbol, start, end, granularity);
-      setChartData(data);
-      if (data.length > 0) {
-        setLastPrice(data[data.length - 1].close);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMouseDown = (event) => {
-    setDragging(true);
-    setMouseX(event.clientX);
-  };
-
-  const handleMouseMove = (event) => {
-    if (!dragging) return;
-    const deltaX = event.clientX - mouseX;
-    setOffset((prev) => ({
-      start: prev.start + deltaX * 0.5,
-      end: prev.end - deltaX * 0.5,
+    const d = Math.round(lastMouseXRef.current - (speed / 2));
+    const drag = c * speed;
+    
+    setOffset(prev => ({
+      ...prev,
+      fstart: prev.fstart + drag,
+      fend: prev.fend - drag,
+      start: Math.round(prev.fstart),
+      end: Math.round(prev.fend)
     }));
-    setMouseX(event.clientX);
-  };
 
-  const handleMouseUp = () => setDragging(false);
+    // Continue kinetic movement with decay matching vanilla JS
+    if (length > 0) {
+      clearTimeout(kineticTimerRef.current);
+      kineticTimerRef.current = setTimeout(() => {
+        setKineticDragResidualSpeed(speed / 1.01, length - 0.06);
+      }, 5);
+    } else {
+      kineticSpeedRef.current = 0;
+    }
+  }, [chartData.length, offset]);
 
-  const handleMouseWheel = (event) => {
-    setOffset((prev) => {
-      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
-      return {
-        start: prev.start * zoomFactor,
-        end: prev.end * zoomFactor,
-      };
-    });
-    event.preventDefault();
-  };  
+  const handleMouseDown = useCallback((event) => {
+    draggingRef.current = true;
+    lastMouseXRef.current = event.clientX;
+    kineticCountRef.current = 0;
+    setTooltipVisible(false);
+  }, []);
 
-  const drawChart = () => {
-    if (!canvasRef.current || chartData.length === 0) return;
+  const handleMouseMove = useCallback((event) => {
+    if (!draggingRef.current) {
+      setMousePos({ x: event.clientX, y: event.clientY });
+      setTooltipVisible(true);
+      return;
+    }
+
+    const x = event.clientX;
+    
+    // Calculate kinetic speed
+    kineticCountRef.current++;
+    if (kineticCountRef.current > 1) {
+      kineticSpeedRef.current = lastMouseXRef.current - x;
+    }
+
+    // Calculate drag amount (matching vanilla JS version)
+    const contextWidth = canvasRef.current.width - 50;
+    const p = chartData.length - (offset.start + offset.end);
+    const c = p / contextWidth;
+    const drag = c * (lastMouseXRef.current - x);
+
+    // Update offset using the same approach as vanilla JS
+    setOffset(prev => ({
+      ...prev,
+      fstart: prev.fstart + drag,
+      fend: prev.fend - drag,
+      start: Math.round(prev.fstart),
+      end: Math.round(prev.fend)
+    }));
+
+    lastMouseXRef.current = x;
+  }, [chartData.length, offset]);
+
+  const handleMouseUp = useCallback(() => {
+    draggingRef.current = false;
+    if (kineticSpeedRef.current !== 0) {
+      setKineticDragResidualSpeed(
+        kineticSpeedRef.current,
+        Math.abs(kineticSpeedRef.current)
+      );
+    }
+  }, [setKineticDragResidualSpeed]);
+
+  const handleMouseOut = useCallback(() => {
+    draggingRef.current = false;
+    setTooltipVisible(false);
+    if (kineticSpeedRef.current !== 0) {
+      setKineticDragResidualSpeed(
+        kineticSpeedRef.current,
+        Math.abs(kineticSpeedRef.current)
+      );
+    }
+  }, [setKineticDragResidualSpeed]);
+
+  // Drawing logic
+  useEffect(() => {
+    if (loading || !chartData.length || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const padding = ChartConfig.context_padding;
-    
-    // Clear canvas
-    ctx.fillStyle = ChartConfig.backgroundColor;
-    ctx.fillRect(0, 0, width, height);
+    const ctx = canvas.getContext("2d");
+    const contextWidth = canvas.width - 50;
+    const contextHeight = canvas.height;
+    const contextPadding = config.context_padding || 50;
+
+    // Clear and set background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = config.backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Calculate price range
-    const prices = chartData.map(d => d.close);
-    const minPrice = Math.min(...prices) * 0.99;
-    const maxPrice = Math.max(...prices) * 1.01;
-    const priceRange = maxPrice - minPrice;
+    const visibleData = chartData.slice(
+      Math.max(0, offset.start),
+      chartData.length - offset.end
+    );
+    
+    const minPrice = Math.min(...visibleData.map(d => d.low));
+    const maxPrice = Math.max(...visibleData.map(d => d.high));
+    const scaleY = (contextHeight - contextPadding * 2) / (maxPrice - minPrice);
 
-    // Calculate scales
-    const xScale = (width - padding * 2) / (chartData.length - 1);
-    const yScale = (height - padding * 2) / priceRange;
-
-    // Draw price line
+    // Draw chart line
     ctx.beginPath();
-    ctx.strokeStyle = ChartConfig.lineColor;
-    ctx.lineWidth = ChartConfig.lineWidth;
+    ctx.strokeStyle = config.lineColor;
+    ctx.lineWidth = config.lineWidth;
 
-    chartData.forEach((point, i) => {
-      const x = padding + i * xScale;
-      const y = height - padding - (point.close - minPrice) * yScale;
+    visibleData.forEach((data, i) => {
+      const x = (i / visibleData.length) * contextWidth;
+      const y = contextHeight - contextPadding - (data.close - minPrice) * scaleY;
       
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     });
     
     ctx.stroke();
 
-
-    // Fill area under line
-    ctx.lineTo(padding + (chartData.length - 1) * xScale, height - padding);
-    ctx.lineTo(padding, height - padding);
-    ctx.fillStyle = ChartConfig.fillColor;
-    ctx.fill();
-
-    // Draw last price
-    if (lastPrice) {
-      const y = height - padding - (lastPrice - minPrice) * yScale;
-      ctx.beginPath();
-      ctx.arc(width - padding, y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = ChartConfig.lineColor;
+    // Draw fill
+    const lastPoint = visibleData[visibleData.length - 1];
+    if (lastPoint) {
+      ctx.lineTo(contextWidth, contextHeight - contextPadding);
+      ctx.lineTo(0, contextHeight - contextPadding);
+      ctx.closePath();
+      ctx.fillStyle = config.fillColor;
       ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2;
-      ctx.stroke();
     }
-  };
+  }, [chartData, loading, config, offset]);
 
+  // Cleanup effect
   useEffect(() => {
-    fetchData(activeTimeframe);
-
-    // Subscribe to real-time updates
-    /*
-    const unsubscribe = dataProvider.subscribeToUpdates(symbol, (update) => {
-      setLastPrice(update.price);
-    });
-    */
-
     return () => {
-      // unsubscribe();
-      // dataProvider.unsubscribe();
+      if (kineticTimerRef.current) {
+        clearTimeout(kineticTimerRef.current);
+      }
     };
-  }, [activeTimeframe, symbol]);
-
-  useEffect(() => {
-    drawChart();
-  }, [chartData, lastPrice]);
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading chart...</div>;
-  }
+  }, []);
 
   return (
-    <div className="flex flex-col items-center w-full max-w-4xl p-4">
-      <div className="flex space-x-2 mb-4">
-        {timeframes.map(tf => (
-          <TimeframeButton
-            key={tf}
-            timeframe={tf}
-            active={activeTimeframe === tf}
-            onClick={setActiveTimeframe}
-          />
-        ))}
+    <div className="chartWrapper">
+      <h1>{symbol}</h1>
+      <TimeframeSelector selectedTimeframe={timeFrame} onChange={setTimeFrame} />
+      <div className="chartContainer">
+        {loading ? <p>Loading...</p> : null}
+        <canvas
+          ref={canvasRef}
+          width={800}
+          height={400}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseOut={handleMouseOut}
+        />
+        <ChartGrid chartData={chartData} offset={offset} config={config} />
+        <VolumeChart 
+          chartData={chartData} 
+          offset={offset} 
+          config={config.volumeChart} 
+          priceChartHeight={300} 
+        />
+        <PriceArrow 
+          chartData={chartData} 
+          offset={offset} 
+          config={config} 
+        />
+        <ChartTooltip 
+          chartData={chartData} 
+          offset={offset} 
+          config={config} 
+          visible={tooltipVisible} 
+          mousePos={mousePos} 
+        />
       </div>
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        className="border border-gray-200 rounded-lg"
-      />
     </div>
   );
 };
 
-export default OpenChart;
+export default OpenCharts;
