@@ -18,7 +18,8 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const draggingRef = useRef(false);
   const lastMouseXRef = useRef(0);
-  let firstXpos = 0.0, lastXpos = 0.0;
+  const [firstXpos, setFirstXpos] = useState(0.0);
+  const [lastXpos, setLastXpos] = useState(0.0);
 
 
   const [offset, setOffset] = useState({
@@ -105,9 +106,9 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
       prevY = y;
 
       if (i === 0) {
-        firstXpos = x;
+        setFirstXpos(x);
       }
-      lastXpos = x;
+      setLastXpos(x);
     });
 
     ctx.stroke();
