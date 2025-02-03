@@ -20,12 +20,6 @@ const TimeframeSelector = ({ selectedTimeframe, onChange }) => {
       {/* Styled JSX for component-scoped CSS */}
       <style jsx>{`
         /* Wrapper styling */
-        .chartWrapper {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          width: 100%;
-        }
 
         /* Buttons (ul and li styling) */
         .chartButtons {
@@ -51,13 +45,6 @@ const TimeframeSelector = ({ selectedTimeframe, onChange }) => {
 
         .chartButtons li:hover {
           background-color: #037ffc;
-        }
-
-        /* Chart container */
-        .chartContainer {
-          position: relative;
-          height: 300px;
-          margin-top: 10px;
         }
 
         .chartButtons li.active {

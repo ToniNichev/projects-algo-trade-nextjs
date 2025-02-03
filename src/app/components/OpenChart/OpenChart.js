@@ -32,7 +32,9 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-
+  /**
+   * Handle mouse events
+   */
   const handleMouseDown = useCallback((event) => {
     draggingRef.current = true;
     lastMouseXRef.current = event.clientX;
@@ -40,21 +42,36 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const handleMouseMove = useCallback((event) => {
     if (draggingRef.current) {
+      const diff = lastMouseXRef.current - event.clientX;
+
+      const p = chartData.length - (offset.start + offset.end);
+      /*
+      setOffset({
+        start: offset.start + diff,
+        end: offset.end - diff,
+        fstart: offset.fstart,
+        fend: offset.fend,
+      });
+      */
+      
+      /*
       const canvas = canvasRef.current;
       const contextWidth = canvas.width - 50;
 
       const p = chartData.length - (offset.start + offset.end);
       const c = p / contextWidth;
       const drag = c * (lastMouseXRef.current - event.clientX);
-      const newOffsetStart =  Math.round(offset.start + drag);
+      const newOffsetStart = Math.round(offset.start + drag);
       const newOffsetEnd = Math.round(offset.end - drag);
-
+      */
+      /*
       setOffset({
         start: newOffsetStart,
         end: newOffsetEnd,
         fstart: offset.fstart,
         fend: offset.fend,
-      });      
+      });
+      */
     }
   }, [chartData, offset]);
 
@@ -65,8 +82,9 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
   const handleMouseOut = useCallback(() => {
   }, []);
 
-
-  // Drawing logic
+  /**
+   * Draw chart
+   */
   useEffect(() => {
     if (loading || !chartData.length || !canvasRef.current) return;
 
@@ -81,17 +99,17 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     ctx.fillStyle = config.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    
+
     // Calculate price range
-    
+
     const visibleData = chartData.slice(
       Math.max(0, offset.start),
       chartData.length - offset.end
     );
-    
+
 
     const dataLength = chartData.length - (offset.start + offset.end);
-    
+
     const minPrice = Math.min(...visibleData.map(d => d.low));
     const maxPrice = Math.max(...visibleData.map(d => d.high));
     const scaleY = (contextHeight - contextPadding * 2) / (maxPrice - minPrice);
@@ -104,10 +122,10 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     const stepX = contextWidth / dataLength; // Define step size
 
     console.log(offset.start);
-    for(let i=0; i < dataLength; i++) {
+    for (let i = 0; i < dataLength; i++) {
       const dataIndex = i + offset.start;
 
-      if(!chartData[dataIndex]) continue;
+      if (!chartData[dataIndex]) continue;
 
       const x = i * stepX;
       const y = contextHeight - contextPadding - (chartData[dataIndex].close - minPrice) * scaleY;
@@ -142,14 +160,15 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
 
   return (
+    <>
     <div className="chartWrapper">
       <h1>{symbol}</h1>
-      <TimeframeSelector selectedTimeframe={timeFrame} onChange={setTimeFrame} />
-      <div className="chartContainer">
+      <div className="chartContainer">        
         {loading ? <p>Loading...</p> : null}
+        <TimeframeSelector selectedTimeframe={timeFrame} onChange={setTimeFrame} />
         <canvas
           ref={canvasRef}
-          width={800}
+          width={700}
           height={400}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -158,6 +177,14 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
         />
       </div>
     </div>
+
+          {/* Styled JSX for component-scoped CSS */}
+      <style jsx>{`
+      .chartContainer canvas {
+        border:1px solid red;
+      }
+      `}</style>
+    </>
   );
 };
 
