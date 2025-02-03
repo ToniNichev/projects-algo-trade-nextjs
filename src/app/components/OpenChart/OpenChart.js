@@ -50,9 +50,10 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
    * Handle mouse events
    */
   const handleMouseDown = useCallback((event) => {
+    console.log("fistXpos", firstXpos);
     draggingRef.current = true;
-    lastMouseXRef.current = event.clientX;
-  }, []);
+    lastMouseXRef.current = event.clientX + firstXpos;
+  }, [firstXpos]);
 
   const handleMouseMove = useCallback((event) => {
     
@@ -72,8 +73,11 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     }));
   }, [chartData, offset]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((event) => {
     draggingRef.current = false;
+    const x = event.clientX;
+    const diff = lastMouseXRef.current - x;
+    setFirstXpos(diff);
   }, []);
 
   const handleMouseOut = useCallback(() => {
@@ -113,16 +117,12 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
       const x = i * stepX;
       const y = contextHeight - contextPadding - (chartData[dataIndex].close - minPrice) * scaleY;
 
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
 
-      if (i === 0) {
-        setFirstXpos(x);
-      }
-      setLastXpos(x);
+      ctx.lineTo(x, y);
+
+
+      //setFirstXpos(lastMouseXRef.current - x);
+      //setLastXpos(x);
     }
 
     ctx.stroke();
@@ -133,7 +133,7 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
       ctx.lineTo(0, contextHeight - contextPadding);
       ctx.closePath();
       ctx.fillStyle = config.fillColor;
-      ctx.fill();
+      //ctx.fill();
     }
   }, [chartData, loading, config, offset]);
 
