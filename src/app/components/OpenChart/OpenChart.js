@@ -32,6 +32,21 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
+  const chartCanvasProps = useCallback(() => {
+    console.log("!!!!");
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const contextPadding = config.context_padding || 50;
+    const contextWidth = canvas.width - contextPadding;
+    const contextHeight = canvas.height;
+    return {
+      ctx,
+      contextPadding,
+      contextWidth,
+      contextHeight
+    };
+  }, [config.context_padding]);
+
   /**
    * Handle mouse events
    */
@@ -43,48 +58,19 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
   const handleMouseMove = useCallback((event) => {
     if (draggingRef.current) {
       const dataLength = chartData.length;
-      const contextWidth = canvasRef.current.width - 50;
+      const { contextWidth } = chartCanvasProps();
       const diff = lastMouseXRef.current - event.clientX;
       const c = dataLength / contextWidth;
       const offsetX = Math.round(c * diff);
-      // console.log("diff: ", diff);
+
       setOffset({
         start: offsetX,
         end: offset.end,
         fstart: offset.fstart,
         fend: offset.fend,
       });
-
-      
-      /*
-      setOffset({
-        start: offset.start + diff,
-        end: offset.end - diff,
-        fstart: offset.fstart,
-        fend: offset.fend,
-      });
-      */
-      
-      /*
-      const canvas = canvasRef.current;
-      const contextWidth = canvas.width - 50;
-
-      const p = chartData.length - (offset.start + offset.end);
-      const c = p / contextWidth;
-      const drag = c * (lastMouseXRef.current - event.clientX);
-      const newOffsetStart = Math.round(offset.start + drag);
-      const newOffsetEnd = Math.round(offset.end - drag);
-      */
-      /*
-      setOffset({
-        start: newOffsetStart,
-        end: newOffsetEnd,
-        fstart: offset.fstart,
-        fend: offset.fend,
-      });
-      */
     }
-  }, [chartData, offset]);
+  }, [chartData, offset, chartCanvasProps]);
 
   const handleMouseUp = useCallback(() => {
     draggingRef.current = false;
