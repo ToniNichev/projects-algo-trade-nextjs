@@ -14,12 +14,16 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
   const config = useChartConfig().config;
   const [timeFrame, setTimeFrame] = useState("1D");
   const { chartData, loading } = useChartData(symbol, timeFrame, dataSource);
-  const canvasRef = useRef(null);
 
+  const canvasRef = useRef(null);
   const draggingRef = useRef(false);
-  const lastMouseXRef = useRef(0);
-  const [firstXpos, setFirstXpos] = useState(0.0);
-  const [lastXpos, setLastXpos] = useState(0.0);
+  const lastMouseXRef = useRef(0); 
+
+  const firstXposRef = useRef(0);
+  // kinectic scrolling parameters
+  const lastTimeRef = useRef(0); // Tracks time for velocity calculation
+  const velocityRef = useRef(0); // Stores last known velocity
+  const isAnimatingRef = useRef(false); // Prevents multiple animation loops  
 
 
   const [offset, setOffset] = useState({
@@ -46,42 +50,90 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     };
   }, [config.context_padding]);
 
+
   /**
    * Handle mouse events
    */
+
   const handleMouseDown = useCallback((event) => {
-    console.log("fistXpos", firstXpos);
     draggingRef.current = true;
-    lastMouseXRef.current = event.clientX + firstXpos;
-  }, [firstXpos]);
+    velocityRef.current = 0; // Reset velocity when user starts dragging
+    lastMouseXRef.current = event.clientX + firstXposRef.current;
+    lastTimeRef.current = performance.now();
+    isAnimatingRef.current = false; // Stop any ongoing kinetic animation
+  }, []);
+
 
   const handleMouseMove = useCallback((event) => {
-    
     if (!draggingRef.current || !canvasPropsRef.current) return;
-    
+
     const dataLength = chartData.length;
     const { contextWidth } = canvasPropsRef.current;
     const diff = lastMouseXRef.current - event.clientX;
+
+    // Calculate velocity (px per frame)
+    velocityRef.current = diff;
+
     const c = dataLength / contextWidth;
     const offsetX = Math.round(c * diff);
 
-    setOffset((...prevOffset) => ({
-      start: offsetX,
-      end: offset.end,
-      fstart: offset.fstart,
-      fend: offset.fend,
+    setOffset((prevOffset) => ({
+      ...prevOffset,
+      start: offsetX
     }));
-  }, [chartData, offset]);
+
+    const currentX = event.clientX;
+    const currentTime = performance.now();
+    
+    // Time difference in milliseconds
+    const timeDiff = currentTime - lastTimeRef.current;
+
+    if (timeDiff > 0.5) {
+      // Calculate velocity (px per millisecond)
+      velocityRef.current = (currentX - lastMouseXRef.current) / timeDiff;
+    }    
+    lastTimeRef.current = currentTime;
+  }, [chartData.length]);
+
 
   const handleMouseUp = useCallback((event) => {
     draggingRef.current = false;
-    const x = event.clientX;
-    const diff = lastMouseXRef.current - x;
-    setFirstXpos(diff);
+    firstXposRef.current = lastMouseXRef.current - event.clientX;
   }, []);
 
-  const handleMouseOut = useCallback(() => {
+
+  const handleMouseOut = useCallback((event) => {
+    draggingRef.current = false;
+    firstXposRef.current = lastMouseXRef.current - event.clientX;
   }, []);
+
+
+  /**
+   * Kinetic scrolling
+   */
+  const kineticScroll = () => {
+    if (!isAnimatingRef.current) return;
+
+    let velocity = velocityRef.current;
+    const friction = 0.95; // Controlls deceleration speed
+
+    const animate = () => {
+      if (Math.abs(velocity) < 0.5) {
+        isAnimatingRef.current = false;
+        return;
+      }
+
+      setOffset((prevOffset) => ({
+        ...prevOffset,
+        start: prevOffset.start + velocity,
+      }));
+
+      velocity *= friction;
+
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }
 
   /**
    * Draw chart
