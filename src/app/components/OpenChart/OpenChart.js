@@ -42,9 +42,20 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
   const handleMouseMove = useCallback((event) => {
     if (draggingRef.current) {
+      const dataLength = chartData.length;
+      const contextWidth = canvasRef.current.width - 50;
       const diff = lastMouseXRef.current - event.clientX;
+      const c = dataLength / contextWidth;
+      const offsetX = Math.round(c * diff);
+      // console.log("diff: ", diff);
+      setOffset({
+        start: offsetX,
+        end: offset.end,
+        fstart: offset.fstart,
+        fend: offset.fend,
+      });
 
-      const p = chartData.length - (offset.start + offset.end);
+      
       /*
       setOffset({
         start: offset.start + diff,
@@ -101,17 +112,17 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
 
     // Calculate price range
-
+    /*
     const visibleData = chartData.slice(
       Math.max(0, offset.start),
       chartData.length - offset.end
     );
+    */
 
+    const dataLength = chartData.length; // - (offset.start + offset.end);
 
-    const dataLength = chartData.length - (offset.start + offset.end);
-
-    const minPrice = Math.min(...visibleData.map(d => d.low));
-    const maxPrice = Math.max(...visibleData.map(d => d.high));
+    const minPrice = Math.min(...chartData.map(d => d.close));
+    const maxPrice = Math.max(...chartData.map(d => d.close));
     const scaleY = (contextHeight - contextPadding * 2) / (maxPrice - minPrice);
 
     // Draw chart line
@@ -121,7 +132,7 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
     const stepX = contextWidth / dataLength; // Define step size
 
-    console.log(offset.start);
+
     for (let i = 0; i < dataLength; i++) {
       const dataIndex = i + offset.start;
 
@@ -136,9 +147,6 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
         ctx.lineTo(x, y);
       }
 
-      // prevX = x;
-      //prevY = y;
-
       if (i === 0) {
         setFirstXpos(x);
       }
@@ -147,7 +155,7 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
 
     ctx.stroke();
     // Draw fill
-    const lastPoint = visibleData[visibleData.length - 1];
+    const lastPoint = chartData[chartData.length - 1];
     if (lastPoint) {
       ctx.lineTo(contextWidth, contextHeight - contextPadding);
       ctx.lineTo(0, contextHeight - contextPadding);
