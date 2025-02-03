@@ -33,13 +33,13 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const chartCanvasProps = useCallback(() => {
-    console.log("!!!!");
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     const contextPadding = config.context_padding || 50;
     const contextWidth = canvas.width - contextPadding;
     const contextHeight = canvas.height;
     return {
+      canvas,
       ctx,
       contextPadding,
       contextWidth,
@@ -84,26 +84,12 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
    */
   useEffect(() => {
     if (loading || !chartData.length || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const contextWidth = canvas.width - 50;
-    const contextHeight = canvas.height;
-    const contextPadding = config.context_padding || 50;
+    const { canvas, ctx, contextPadding, contextWidth, contextHeight } = chartCanvasProps();
 
     // Clear and set background
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = config.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-
-    // Calculate price range
-    /*
-    const visibleData = chartData.slice(
-      Math.max(0, offset.start),
-      chartData.length - offset.end
-    );
-    */
 
     const dataLength = chartData.length; // - (offset.start + offset.end);
 
@@ -149,7 +135,7 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
       ctx.fillStyle = config.fillColor;
       ctx.fill();
     }
-  }, [chartData, loading, config, offset]);
+  }, [chartData, loading, config, offset, chartCanvasProps]);
 
 
 
