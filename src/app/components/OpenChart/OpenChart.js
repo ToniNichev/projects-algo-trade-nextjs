@@ -29,21 +29,20 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
     fend: 0
   });
 
-
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  const chartCanvasProps = useCallback(() => {
+  // Store canvas properties once
+  const canvasPropsRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const contextPadding = config.context_padding || 50;
-    const contextWidth = canvas.width - contextPadding;
-    const contextHeight = canvas.height;
-    return {
+    canvasPropsRef.current = {
       canvas,
-      ctx,
-      contextPadding,
-      contextWidth,
-      contextHeight
+      ctx: canvas.getContext("2d"),
+      contextPadding: config.context_padding || 50,
+      contextWidth: canvas.width - (config.context_padding || 50),
+      contextHeight: canvas.height,
     };
   }, [config.context_padding]);
 
@@ -56,21 +55,22 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
   }, []);
 
   const handleMouseMove = useCallback((event) => {
-    if (draggingRef.current) {
-      const dataLength = chartData.length;
-      const { contextWidth } = chartCanvasProps();
-      const diff = lastMouseXRef.current - event.clientX;
-      const c = dataLength / contextWidth;
-      const offsetX = Math.round(c * diff);
+    
+    if (!draggingRef.current || !canvasPropsRef.current) return;
+    
+    const dataLength = chartData.length;
+    const { contextWidth } = canvasPropsRef.current;
+    const diff = lastMouseXRef.current - event.clientX;
+    const c = dataLength / contextWidth;
+    const offsetX = Math.round(c * diff);
 
-      setOffset({
-        start: offsetX,
-        end: offset.end,
-        fstart: offset.fstart,
-        fend: offset.fend,
-      });
-    }
-  }, [chartData, offset, chartCanvasProps]);
+    setOffset((...prevOffset) => ({
+      start: offsetX,
+      end: offset.end,
+      fstart: offset.fstart,
+      fend: offset.fend,
+    }));
+  }, [chartData, offset]);
 
   const handleMouseUp = useCallback(() => {
     draggingRef.current = false;
@@ -84,7 +84,7 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
    */
   useEffect(() => {
     if (loading || !chartData.length || !canvasRef.current) return;
-    const { canvas, ctx, contextPadding, contextWidth, contextHeight } = chartCanvasProps();
+    const { canvas, ctx, contextPadding, contextWidth, contextHeight } = canvasPropsRef.current;
 
     // Clear and set background
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -135,30 +135,30 @@ const OpenCharts = ({ symbol, dataSource = "coinbase" }) => {
       ctx.fillStyle = config.fillColor;
       ctx.fill();
     }
-  }, [chartData, loading, config, offset, chartCanvasProps]);
+  }, [chartData, loading, config, offset]);
 
 
 
   return (
     <>
-    <div className="chartWrapper">
-      <h1>{symbol}</h1>
-      <div className="chartContainer">        
-        {loading ? <p>Loading...</p> : null}
-        <TimeframeSelector selectedTimeframe={timeFrame} onChange={setTimeFrame} />
-        <canvas
-          ref={canvasRef}
-          width={700}
-          height={400}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseOut={handleMouseOut}
-        />
+      <div className="chartWrapper">
+        <h1>{symbol}</h1>
+        <div className="chartContainer">
+          {loading ? <p>Loading...</p> : null}
+          <TimeframeSelector selectedTimeframe={timeFrame} onChange={setTimeFrame} />
+          <canvas
+            ref={canvasRef}
+            width={700}
+            height={400}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseOut={handleMouseOut}
+          />
+        </div>
       </div>
-    </div>
 
-          {/* Styled JSX for component-scoped CSS */}
+      {/* Styled JSX for component-scoped CSS */}
       <style jsx>{`
       .chartContainer canvas {
         border:1px solid red;
